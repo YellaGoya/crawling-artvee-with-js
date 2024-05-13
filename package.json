@@ -1,0 +1,1 @@
+{ "dependencies": { "dotenv": "^16.4.5", "extract-colors": "^4.0.4", "get-pixels": "^3.3.3", "pg": "^8.11.5", "puppeteer": "^22.8.0" }, "type": "module" }
