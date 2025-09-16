@@ -1,5 +1,5 @@
 import fs from "fs";
-import http from "http";
+import https from "https";
 import url from "url";
 
 import path from "path";
@@ -36,11 +36,11 @@ import useSQL from "./pg-connection.js";
 
   // 이미지 중복 검사
   const crawled = await page.evaluate(() => {
-    const links = Array.from(document.querySelectorAll(".product img")).map(
-      (obj) => obj.dataset.src,
+    const links = Array.from(document.querySelectorAll(".product-image-link img")).map(
+      (img) => img.src,
     );
-    const titles = Array.from(document.querySelectorAll(".product-title")).map(
-      (obj) => obj.firstChild.innerText,
+    const titles = Array.from(document.querySelectorAll(".product-title a")).map(
+      (a) => a.innerText,
     );
     const artists = Array.from(
       document.querySelectorAll(".woodmart-product-brands-links"),
@@ -57,7 +57,7 @@ import useSQL from "./pg-connection.js";
     const randomIndex = Math.floor(Math.random() * crawled.links.length);
 
     const isduplication = await useSQL(
-      `SELECT * FROM art_gallery WHERE image_link = $1`,
+      `SELECT * FROM art WHERE image_link = $1`,
       [crawled.links[randomIndex]],
     );
 
@@ -88,7 +88,7 @@ import useSQL from "./pg-connection.js";
 
     const date = new Date().toISOString();
     await useSQL(
-      `INSERT INTO art_gallery (title, artist, image_link, image_width, image_height, update_date, color_hex_codes ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO art (title, artist, image_link, image_width, image_height, update_date, color_hex_codes ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [title, artist, link, width, height, date, hexCodes],
     );
   });
@@ -98,13 +98,19 @@ import useSQL from "./pg-connection.js";
 
 const downloadImage = (url, fileName) => {
   return new Promise((resolve, reject) => {
-    http
+    https
       .get(url, (res) => {
-        const fileStream = fs.createWriteStream(fileName);
+        if (res.statusCode !== 200) {
+          reject(new Error(`Failed to get '${url}' (${res.statusCode})`));
+          res.resume(); // 응답 스트림 소비해서 메모리 누수 방지
+          return;
+        }
 
+        const fileStream = fs.createWriteStream(fileName);
         res.pipe(fileStream);
 
         fileStream.on("finish", () => {
+          fileStream.close();
           console.log(`Crawl Artvee: Image saved successfully! "${fileName}"`);
           resolve();
         });
@@ -115,6 +121,7 @@ const downloadImage = (url, fileName) => {
       });
   });
 };
+
 
 const extractHexCodes = (img) => {
   return new Promise((resolve, reject) => {
